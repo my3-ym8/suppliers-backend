@@ -1,0 +1,498 @@
+generator client {
+  provider   = "prisma-client"
+  output     = "../generated/prisma"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AuthUser {
+  auth_user_id   String    @id @default(uuid()) @db.Uuid
+  application_id String    @unique @default("01")
+  email          String    @unique
+  password_hash  String?
+  phone          String?
+  role           UserRole  @default(supplier)
+  email_verified Boolean   @default(false)
+  is_active      Boolean   @default(true)
+  is_superadmin  Boolean   @default(false)
+  last_login_at  DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  // Relations
+  tokens                AuthToken[]
+  profiles              UserProfile?
+  customer              Customer?
+  suppliers             Supplier?
+  uploadedFiles         File[]              @relation("FileUploader")
+  supplierStatusChanges SupplierStatus[]    @relation("SupplierStatusChangedBy")
+  supplierTypesCreated  SupplierType[]      @relation("SupplierTypeCreatedBy")
+  activityCatCreated    ActivityCategory[]  @relation("ActivityCategoryCreatedBy")
+  adminAssignments      AdminAssignment[]   @relation("AdminAssigned")
+  adminAssignmentsMade  AdminAssignment[]   @relation("AdminAssignedBy")
+  adminOrders           AdminProductOrder[] @relation("AdminProductOrdersOrderedBy")
+  auditLogs             AuditLog[]          @relation("AuditActor")
+  notifications         Notification[]      @relation("NotificationRecipient")
+  notificationsRelated  Notification[]      @relation("NotificationActor")
+  productStatusChanges  ProductStatus[]     @relation("ProductStatusChangedBy")
+
+  @@index([role])
+  @@index([is_superadmin])
+}
+
+model AuthToken {
+  token_id      Int       @id @default(autoincrement())
+  auth_user_id  String    @db.Uuid
+  token_hash    String    @unique
+  token_type    String    @default("EMAIL_VERIFICATION")
+  is_single_use Boolean   @default(true)
+  expires_at    DateTime
+  used_at       DateTime?
+  created_at    DateTime  @default(now())
+  metadata      Json?
+  auth_user     AuthUser  @relation(fields: [auth_user_id], references: [auth_user_id], onDelete: Cascade)
+
+  @@index([auth_user_id])
+  @@index([expires_at])
+}
+
+model UserProfile {
+  user_profile_id  Int       @id @default(autoincrement())
+  auth_user_id     String    @unique @db.Uuid
+  first_name       String?
+  last_name        String?
+  kvkk_accepted    Boolean   @default(false)
+  kvkk_accepted_at DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  auth_user        AuthUser  @relation(fields: [auth_user_id], references: [auth_user_id], onDelete: Cascade)
+}
+
+model File {
+  file_id                    Int                   @id @default(autoincrement())
+  storage_key                String                @unique
+  original_filename          String?
+  mime_type                  String?
+  size_bytes                 BigInt?
+  uploaded_by                String?               @db.Uuid
+  uploaded_at                DateTime              @default(now())
+  metadata                   Json?
+  uploader                   AuthUser?             @relation("FileUploader", fields: [uploaded_by], references: [auth_user_id])
+  products                   Product[]
+  productMedia               ProductMedia[]
+  supplierBankProofs         SupplierBankAccount[]
+  supplierDocumentsSignature SupplierDocument[]    @relation("SupplierDocumentSignature")
+  supplierDocumentsTax       SupplierDocument[]    @relation("SupplierDocumentTax")
+  supplierDocumentsRegistry  SupplierDocument[]    @relation("SupplierDocumentRegistry")
+}
+
+model Supplier {
+  supplier_id        Int                      @id @default(autoincrement())
+  auth_user_id       String                   @unique @db.Uuid
+  legal_name         String
+  company_type       CompanyType
+  tax_number         String                   @unique
+  tax_office         String?
+  trade_registry_no  String?
+  is_active          Boolean                  @default(true)
+  created_at         DateTime                 @default(now())
+  updated_at         DateTime                 @updatedAt
+  adminAssignments   AdminAssignment[]
+  adminProductOrders AdminProductOrder[]
+  notifications      Notification[]
+  customersOrders    Order[]
+  products           Product[]
+  auth_user          AuthUser                 @relation(fields: [auth_user_id], references: [auth_user_id], onDelete: Cascade)
+  bankAccounts       SupplierBankAccount[]
+  contacts           SupplierContactAddress[]
+  documents          SupplierDocument?
+  skills             SupplierSkillActivity[]
+  status             SupplierStatus?
+}
+
+model SupplierStatus {
+  supplier_id     Int                        @id
+  current_status  SupplierVerificationStatus @default(under_review)
+  status_note     String?
+  changed_by      String?                    @db.Uuid
+  changed_at      DateTime                   @default(now())
+  changed_by_user AuthUser?                  @relation("SupplierStatusChangedBy", fields: [changed_by], references: [auth_user_id])
+  supplier        Supplier                   @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+}
+
+model SupplierDocument {
+  supplier_document_id          Int      @id @default(autoincrement())
+  supplier_id                   Int      @unique
+  tax_sheet_file_id             Int?
+  trade_registry_file_id        Int?
+  signature_declaration_file_id Int?
+  uploaded_at                   DateTime @default(now())
+  signature_file                File?    @relation("SupplierDocumentSignature", fields: [signature_declaration_file_id], references: [file_id])
+  supplier                      Supplier @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+  tax_sheet_file                File?    @relation("SupplierDocumentTax", fields: [tax_sheet_file_id], references: [file_id])
+  trade_registry_file           File?    @relation("SupplierDocumentRegistry", fields: [trade_registry_file_id], references: [file_id])
+}
+
+model SupplierBankAccount {
+  bank_account_id     Int      @id @default(autoincrement())
+  supplier_id         Int
+  bank_name           String
+  iban                String
+  account_holder_name String
+  proof_file_id       Int?
+  is_primary          Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  proof_file          File?    @relation(fields: [proof_file_id], references: [file_id])
+  supplier            Supplier @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+}
+
+model SupplierContactAddress {
+  id                Int      @id @default(autoincrement())
+  supplier_id       Int
+  is_billing        Boolean  @default(false)
+  country           String   @default("Türkiye")
+  province          String
+  district          String
+  address           String
+  phone             String
+  website           String?
+  contact_full_name String
+  contact_title     String
+  contact_email     String
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  supplier          Supplier @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+
+  @@index([supplier_id])
+  @@index([is_billing])
+}
+
+model SupplierSkillActivity {
+  supplier_skills_id Int                    @id @default(autoincrement())
+  supplier_id        Int
+  supplier_type_id   Int
+  expertise_level    String?
+  why_choose_us      String?
+  is_featured        Boolean                @default(false)
+  is_active          Boolean                @default(true)
+  created_at         DateTime               @default(now())
+  updated_at         DateTime               @updatedAt
+  brands             SupplierBrandMapping[]
+  mainActivities     SupplierMainActivity[]
+  supplier           Supplier               @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+  supplier_type      SupplierType           @relation(fields: [supplier_type_id], references: [supplier_type_id])
+}
+
+model SupplierMainActivity {
+  id                   Int                   @id @default(autoincrement())
+  supplier_skills_id   Int
+  activity_category_id Int
+  category             ActivityCategory      @relation(fields: [activity_category_id], references: [activity_category_id])
+  skills               SupplierSkillActivity @relation(fields: [supplier_skills_id], references: [supplier_skills_id], onDelete: Cascade)
+  subActivities        SupplierSubActivity[]
+
+  @@unique([supplier_skills_id, activity_category_id])
+  @@index([supplier_skills_id])
+}
+
+model SupplierSubActivity {
+  id                        Int                  @id @default(autoincrement())
+  supplier_main_activity_id Int
+  sub_category_name         String
+  mainActivity              SupplierMainActivity @relation(fields: [supplier_main_activity_id], references: [id], onDelete: Cascade)
+
+  @@index([supplier_main_activity_id])
+}
+
+model SupplierBrandMapping {
+  id                 Int                   @id @default(autoincrement())
+  supplier_skills_id Int
+  brand_name         String
+  skills             SupplierSkillActivity @relation(fields: [supplier_skills_id], references: [supplier_skills_id], onDelete: Cascade)
+
+  @@index([supplier_skills_id])
+}
+
+model SupplierType {
+  supplier_type_id Int                     @id @default(autoincrement())
+  name             String                  @unique
+  is_active        Boolean                 @default(true)
+  created_by       String?                 @db.Uuid
+  created_at       DateTime                @default(now())
+  skills           SupplierSkillActivity[]
+  created_by_user  AuthUser?               @relation("SupplierTypeCreatedBy", fields: [created_by], references: [auth_user_id])
+}
+
+model ActivityCategory {
+  activity_category_id   Int                    @id @default(autoincrement())
+  name                   String                 @unique
+  parent_id              Int?
+  is_active              Boolean                @default(true)
+  created_by             String?                @db.Uuid
+  created_at             DateTime               @default(now())
+  created_by_user        AuthUser?              @relation("ActivityCategoryCreatedBy", fields: [created_by], references: [auth_user_id])
+  parent                 ActivityCategory?      @relation("ActivityCategoryParent", fields: [parent_id], references: [activity_category_id])
+  children               ActivityCategory[]     @relation("ActivityCategoryParent")
+  supplierMainActivities SupplierMainActivity[]
+}
+
+model AdminAssignment {
+  id               Int       @id @default(autoincrement())
+  admin_user_id    String    @db.Uuid
+  supplier_id      Int
+  assigned_by      String?   @db.Uuid
+  assigned_at      DateTime  @default(now())
+  is_active        Boolean   @default(true)
+  admin            AuthUser  @relation("AdminAssigned", fields: [admin_user_id], references: [auth_user_id])
+  assigned_by_user AuthUser? @relation("AdminAssignedBy", fields: [assigned_by], references: [auth_user_id])
+  supplier         Supplier  @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+
+  @@unique([admin_user_id, supplier_id])
+  @@index([admin_user_id])
+  @@index([supplier_id])
+  @@index([is_active])
+}
+
+model Product {
+  product_id         Int                 @id @default(autoincrement())
+  product_code       String              @unique @default("01")
+  supplier_id        Int
+  name               String
+  slug               String              @unique
+  short_description  String?
+  full_description   String?
+  main_image_file_id Int?
+  price              Decimal             @db.Decimal(12, 2)
+  currency           String              @default("TRY")
+  stock              Int                 @default(0)
+  is_active          Boolean             @default(true)
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  adminProductOrders AdminProductOrder[]
+  notifications      Notification[]
+  orderItems         OrderItem[]
+  main_image_file    File?               @relation(fields: [main_image_file_id], references: [file_id])
+  supplier           Supplier            @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+  likes              ProductLike[]
+  media              ProductMedia[]
+  status             ProductStatus?
+}
+
+model ProductLike {
+  like_id     Int      @id @default(autoincrement())
+  product_id  Int
+  customer_id Int
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  customer    Customer @relation(fields: [customer_id], references: [customer_id], onDelete: Cascade)
+  product     Product  @relation(fields: [product_id], references: [product_id], onDelete: Cascade)
+
+  @@unique([product_id, customer_id])
+  @@index([product_id])
+  @@index([customer_id])
+  @@index([is_active])
+}
+
+model ProductStatus {
+  product_id         Int                      @id
+  publication_status ProductPublicationStatus @default(draft)
+  order_status       ProductOrderStatus?
+  status_note        String?
+  quantity           Int?
+  changed_by         String?                  @db.Uuid
+  changed_at         DateTime                 @default(now())
+  changed_by_user    AuthUser?                @relation("ProductStatusChangedBy", fields: [changed_by], references: [auth_user_id])
+  product            Product                  @relation(fields: [product_id], references: [product_id], onDelete: Cascade)
+}
+
+model ProductMedia {
+  media_id   Int      @id @default(autoincrement())
+  product_id Int
+  file_id    Int
+  media_type String?
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+  file       File     @relation(fields: [file_id], references: [file_id])
+  product    Product  @relation(fields: [product_id], references: [product_id], onDelete: Cascade)
+
+  @@index([product_id])
+}
+
+model Customer {
+  customer_id   Int           @id @default(autoincrement())
+  auth_user_id  String        @unique @db.Uuid
+  customer_type String        @default("individual")
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  auth_user     AuthUser      @relation(fields: [auth_user_id], references: [auth_user_id], onDelete: Cascade)
+  orders        Order[]
+  likes         ProductLike[]
+}
+
+model Order {
+  order_id      Int            @id @default(autoincrement())
+  order_code    String         @unique @default("01")
+  customer_id   Int?
+  supplier_id   Int?
+  total_amount  Decimal?       @db.Decimal(14, 2)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  notifications Notification[]
+  customer      Customer?      @relation(fields: [customer_id], references: [customer_id])
+  supplier      Supplier?      @relation(fields: [supplier_id], references: [supplier_id])
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  order_id   Int
+  product_id Int?
+  unit_price Decimal? @db.Decimal(12, 2)
+  quantity   Int
+  created_at DateTime @default(now())
+  order      Order    @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
+  product    Product? @relation(fields: [product_id], references: [product_id])
+
+  @@index([order_id])
+  @@index([product_id])
+}
+
+model AdminProductOrder {
+  admin_order_id  Int            @id @default(autoincrement())
+  supplier_id     Int
+  product_id      Int
+  quantity        Int
+  ordered_by      String         @db.Uuid
+  order_note      String?
+  created_at      DateTime       @default(now())
+  ordered_by_user AuthUser       @relation("AdminProductOrdersOrderedBy", fields: [ordered_by], references: [auth_user_id])
+  product         Product        @relation(fields: [product_id], references: [product_id])
+  supplier        Supplier       @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+  notifications   Notification[]
+
+  @@index([supplier_id])
+  @@index([product_id])
+  @@index([ordered_by])
+}
+
+model Notification {
+  notification_id       Int                  @id @default(autoincrement())
+  recipient_user_id     String               @db.Uuid
+  notification_type     NotificationType
+  notification_category NotificationCategory
+  status                NotificationStatus   @default(pending)
+  title                 String
+  message               String
+  supplier_id           Int?
+  product_id            Int?
+  order_id              Int?
+  admin_order_id        Int?
+  related_user_id       String?              @db.Uuid
+  quantity              Int?
+  status_before         String?
+  status_after          String?
+  metadata              Json?
+  sent_at               DateTime?
+  read_at               DateTime?
+  created_at            DateTime             @default(now())
+  admin_order           AdminProductOrder?   @relation(fields: [admin_order_id], references: [admin_order_id])
+  order                 Order?               @relation(fields: [order_id], references: [order_id])
+  product               Product?             @relation(fields: [product_id], references: [product_id])
+  recipient             AuthUser             @relation("NotificationRecipient", fields: [recipient_user_id], references: [auth_user_id])
+  related_user          AuthUser?            @relation("NotificationActor", fields: [related_user_id], references: [auth_user_id])
+  supplier              Supplier?            @relation(fields: [supplier_id], references: [supplier_id])
+
+  @@index([recipient_user_id])
+  @@index([status])
+  @@index([notification_type])
+  @@index([notification_category])
+  @@index([supplier_id])
+  @@index([product_id])
+  @@index([order_id])
+  @@index([created_at])
+}
+
+model AuditLog {
+  audit_id      BigInt    @id @default(autoincrement())
+  actor_user_id String?   @db.Uuid
+  action        String
+  target_table  String?
+  target_id     String?
+  changes       Json?
+  ip_address    String?
+  user_agent    String?
+  created_at    DateTime  @default(now())
+  actor         AuthUser? @relation("AuditActor", fields: [actor_user_id], references: [auth_user_id])
+
+  @@index([actor_user_id])
+  @@index([target_table, target_id])
+  @@index([created_at])
+}
+
+/// Kullanıcı rolleri
+enum UserRole {
+  supplier
+  customer
+  admin
+  superadmin
+}
+
+/// Tedarikçi doğrulama durumları
+enum SupplierVerificationStatus {
+  under_review
+  incomplete_info
+  approved
+  rejected
+}
+
+/// Ürün yayın durumu
+enum ProductPublicationStatus {
+  draft
+  active
+}
+
+/// Ürün sipariş durumu
+enum ProductOrderStatus {
+  none
+  ordered
+  sold
+  cancelled
+}
+
+/// Şirket türleri
+enum CompanyType {
+  AS
+  LTD
+  SOLE
+  OTHER
+}
+
+/// Bildirim tipi
+enum NotificationType {
+  email
+  dashboard
+}
+
+/// Bildirim durumları
+enum NotificationStatus {
+  pending
+  sent
+  failed
+  read
+}
+
+/// Bildirim kategorileri
+enum NotificationCategory {
+  supplier_registration
+  supplier_status_change
+  supplier_info_update
+  product_order
+  product_status_change
+  product_sold
+  admin_product_request
+}
