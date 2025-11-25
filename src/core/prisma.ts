@@ -1,23 +1,11 @@
 // src/core/prisma.ts
-import { PrismaClient } from '../../generated/prisma/client.ts';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../../generated/prisma/client.js';
 import { logger } from '../config/logger.ts';
-import env from '../config/env.ts';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-// PostgreSQL connection pool oluştur
-const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-});
-
-// Prisma adapter ile pool'u bağla
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({
-  adapter,
-});
+// Prisma 6'da standart PrismaClient kullanılır (adapter yok)
+const prisma = new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
