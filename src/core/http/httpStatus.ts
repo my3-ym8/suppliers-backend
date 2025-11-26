@@ -1,3 +1,4 @@
+// HTTP status code sabitleri: Tüm HTTP status code'ları için merkezi tanımlar
 export const HttpStatus = {
   OK: 200,
   CREATED: 201,

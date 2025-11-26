@@ -1,8 +1,9 @@
+// Request validation middleware: Zod şeması ile gelen request body, query ve params'ı doğrular
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { z } from 'zod';
 
-export const validateRequest = (schema: AnyZodObject) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+export const validateRequest = (schema: z.ZodTypeAny) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       await schema.parseAsync({
         body: req.body,
@@ -11,11 +12,7 @@ export const validateRequest = (schema: AnyZodObject) => {
       });
       next();
     } catch (error) {
-      if (error instanceof ZodError) {
         next(error);
-      } else {
-        next(error);
-      }
     }
   };
 };

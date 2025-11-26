@@ -1,3 +1,4 @@
+// Global error handler: Tüm hataları yakalar ve uygun HTTP status code ile JSON response döner
 import { Request, Response, NextFunction } from 'express';
 import { HttpException } from '../http/httpException.ts';
 import { HttpStatus } from '../http/httpStatus.ts';
@@ -6,9 +7,9 @@ import { logger } from '../../config/logger.ts';
 
 export const errorHandler = (
   err: Error,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   // Zod validation error
   if (err instanceof ZodError) {
@@ -24,11 +25,18 @@ export const errorHandler = (
 
   // HttpException
   if (err instanceof HttpException) {
-    return res.status(err.statusCode).json({
+    const response: {
+      success: boolean;
+      message: string;
+      details?: unknown;
+    } = {
       success: false,
       message: err.message,
-      ...(err.details && { details: err.details }),
-    });
+    };
+    if (err.details) {
+      response.details = err.details;
+    }
+    return res.status(err.statusCode).json(response);
   }
 
   // Prisma errors

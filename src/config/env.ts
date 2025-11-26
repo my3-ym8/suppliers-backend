@@ -1,3 +1,4 @@
+// Environment variable'ları yükler ve tip güvenli erişim sağlar (.env dosyasından)
 import dotenv from 'dotenv';
 
 // .env dosyasını yükle
@@ -19,7 +20,7 @@ const env = {
 
   // Superadmin
   SUPERADMIN_EMAIL: process.env.SUPERADMIN_EMAIL || 'admin@example.com',
-  SUPERADMIN_PASSWORD: process.env.SUPERADMIN_PASSWORD || 'admin123',
+  SUPERADMIN_MASTER_KEY: process.env.SUPERADMIN_MASTER_KEY || '',
 
   // Database
   DATABASE_URL: process.env.DATABASE_URL || '',

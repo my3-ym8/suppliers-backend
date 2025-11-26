@@ -1,8 +1,7 @@
+// Express uygulaması yapılandırması: middleware'ler, route'lar ve error handling
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import swaggerUi from 'swagger-ui-express';
-import swaggerSpec from './config/swagger.ts';
 import apiRouter from './routes.ts';
 import { errorHandler } from './core/middlewares/errorHandler.ts';
 import { requestLogger } from './core/middlewares/requestLogger.ts';
@@ -28,9 +27,6 @@ app.get('/health', (_req, res) => {
 
 // API routes
 app.use('/api', apiRouter);
-
-// Swagger documentation
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // 404 handler
 app.use((_req, res) => {

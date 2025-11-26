@@ -1,3 +1,4 @@
+// Auth repository: Veritabanı işlemlerini yönetir (kullanıcı CRUD, token işlemleri, profil yönetimi)
 import prisma from '../../core/prisma.ts';
 import { UserRole } from '../../../generated/prisma/enums.ts';
 import type { Prisma } from '../../../generated/prisma/client.ts';
@@ -23,6 +24,23 @@ export class AuthRepository {
       where: { auth_user_id: authUserId },
       include: {
         profiles: true,
+      },
+    });
+  }
+
+  /**
+   * Tüm kullanıcıları getir (aktif olanlar)
+   */
+  async findAll(includeInactive = false) {
+    const where = includeInactive ? {} : { is_active: true };
+    
+    return prisma.authUser.findMany({
+      where,
+      include: {
+        profiles: true,
+      },
+      orderBy: {
+        created_at: 'desc',
       },
     });
   }
@@ -144,6 +162,98 @@ export class AuthRepository {
     const lastId = parseInt(lastUser.application_id, 10);
     const nextId = (lastId + 1).toString().padStart(2, '0');
     return nextId;
+  }
+
+  /**
+   * Kullanıcı güncelle
+   */
+  async update(authUserId: string, data: {
+    email?: string;
+    phone?: string;
+    password_hash?: string;
+  }) {
+    return prisma.authUser.update({
+      where: { auth_user_id: authUserId },
+      data,
+      include: {
+        profiles: true,
+      },
+    });
+  }
+
+  /**
+   * Kullanıcı profilini güncelle
+   */
+  async updateProfile(authUserId: string, data: {
+    first_name?: string;
+    last_name?: string;
+  }) {
+    return prisma.userProfile.update({
+      where: { auth_user_id: authUserId },
+      data,
+    });
+  }
+
+  /**
+   * Kullanıcıyı sil (soft delete - is_active = false)
+   */
+  async delete(authUserId: string) {
+    return prisma.authUser.update({
+      where: { auth_user_id: authUserId },
+      data: { is_active: false },
+    });
+  }
+
+  /**
+   * Token'ı blacklist'e ekle (logout için)
+   */
+  async blacklistToken(data: {
+    auth_user_id: string;
+    token_hash: string;
+    expires_at: Date;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    // Eğer token zaten blacklist'te varsa, yeni bir kayıt oluşturma
+    const existingToken = await prisma.authToken.findUnique({
+      where: { token_hash: data.token_hash },
+    });
+
+    if (existingToken) {
+      // Zaten var, güncelleme yapma (idempotent)
+      return existingToken;
+    }
+
+    return prisma.authToken.create({
+      data: {
+        ...data,
+        token_type: 'LOGOUT_BLACKLIST',
+        is_single_use: false,
+      },
+    });
+  }
+
+  /**
+   * Token blacklist'te mi kontrol et
+   */
+  async isTokenBlacklisted(tokenHash: string): Promise<boolean> {
+    const token = await prisma.authToken.findUnique({
+      where: { token_hash: tokenHash },
+      select: {
+        token_type: true,
+        expires_at: true,
+      },
+    });
+
+    if (!token) {
+      return false;
+    }
+
+    // LOGOUT_BLACKLIST tipindeyse ve henüz expire olmamışsa blacklist'te
+    if (token.token_type === 'LOGOUT_BLACKLIST' && token.expires_at > new Date()) {
+      return true;
+    }
+
+    return false;
   }
 }
 

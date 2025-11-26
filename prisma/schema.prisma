@@ -15,7 +15,7 @@ model AuthUser {
   password_hash  String?
   phone          String?
   role           UserRole  @default(supplier)
-  email_verified Boolean   @default(false)
+  email_verified Boolean   @default(true)
   is_active      Boolean   @default(true)
   is_superadmin  Boolean   @default(false)
   last_login_at  DateTime?
@@ -70,6 +70,8 @@ model UserProfile {
   updated_at       DateTime  @updatedAt
   auth_user        AuthUser  @relation(fields: [auth_user_id], references: [auth_user_id], onDelete: Cascade)
 }
+
+
 
 model File {
   file_id                    Int                   @id @default(autoincrement())

@@ -1,3 +1,4 @@
+// HTTP exception sınıfları: Özel hata türleri için exception class'ları (BadRequest, Unauthorized, Conflict, vb.)
 import { HttpStatus } from './httpStatus.ts';
 
 export class HttpException extends Error {

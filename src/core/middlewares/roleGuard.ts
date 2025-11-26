@@ -1,9 +1,10 @@
+// Role-based access control middleware: Kullanıcının rolüne göre endpoint erişimini kontrol eder
 import { Response, NextFunction } from 'express';
 import { ForbiddenException } from '../http/httpException.ts';
 import { AuthRequest } from './authGuard.ts';
 
 export const roleGuard = (...allowedRoles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, _res: Response, next: NextFunction) => {
     if (!req.user) {
       return next(new ForbiddenException('Kullanıcı bilgisi bulunamadı'));
     }

@@ -1,3 +1,4 @@
+// Şifre hash'leme, doğrulama, UUID ve token oluşturma fonksiyonları
 import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';

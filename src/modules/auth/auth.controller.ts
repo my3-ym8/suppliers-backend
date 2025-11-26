@@ -1,3 +1,4 @@
+// Auth controller: HTTP request/response işlemlerini yönetir (register, login, verifyEmail, logout endpoint'leri)
 import { Response, NextFunction } from 'express';
 import { AuthService } from './auth.service.ts';
 import { RegisterDto, LoginDto } from './auth.dto.ts';
@@ -9,15 +10,22 @@ export class AuthController {
 
   /**
    * Kullanıcı kaydı
+   * Not: Admin rolü için sadece süperadmin kayıt yapabilir
    */
   register = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const result = await this.authService.register(req.body as RegisterDto);
+      // Admin rolü kontrolü: Eğer admin kaydı yapılıyorsa, requesterUserId gereklidir
+      const requesterUserId = req.user?.auth_user_id;
+      const result = await this.authService.register(req.body as RegisterDto, requesterUserId);
 
       res.status(HttpStatus.CREATED).json({
         success: true,
         message: 'Kayıt başarılı',
-        data: result,
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          verificationToken: result.verificationToken, // Production'da e-posta ile gönderilir
+        },
       });
     } catch (error) {
       next(error);
@@ -34,7 +42,10 @@ export class AuthController {
       res.status(HttpStatus.OK).json({
         success: true,
         message: 'Giriş başarılı',
-        data: result,
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+        },
       });
     } catch (error) {
       next(error);
@@ -55,6 +66,239 @@ export class AuthController {
       });
     } catch (error) {
       next(error);
+    }
+  };
+
+  /**
+   * Kullanıcı çıkışı
+   */
+  logout = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      // Authorization header'dan token'ı al
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Token bulunamadı',
+        });
+      }
+
+      const token = authHeader.substring(7); // "Bearer " kısmını çıkar
+
+      // Token boş mu kontrol et
+      if (!token || token.trim().length === 0) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Token boş',
+        });
+      }
+
+      const result = await this.authService.logout(req.user.auth_user_id, token);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Kullanıcı güncelleme
+   */
+  update = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Kullanıcı ID\'si gereklidir',
+        });
+      }
+
+      // Güvenlik kontrolü: Kullanıcı kendi bilgilerini, admin ve superadmin herkesi güncelleyebilir
+      const isOwnAccount = userId === req.user.auth_user_id;
+      const isAdmin = req.user.role === 'admin' || req.user.is_superadmin;
+      
+      if (!isOwnAccount && !isAdmin) {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Bu işlem için yetkiniz bulunmamaktadır',
+        });
+      }
+
+      const result = await this.authService.update(userId, req.body);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        message: result.message,
+        data: {
+          user: result.user,
+        },
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Kullanıcı silme
+   */
+  delete = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Kullanıcı ID\'si gereklidir',
+        });
+      }
+
+      // Güvenlik kontrolü: Kullanıcı kendi hesabını, admin ve superadmin herkesi silebilir
+      const isOwnAccount = userId === req.user.auth_user_id;
+      const isAdmin = req.user.role === 'admin' || req.user.is_superadmin;
+      
+      if (!isOwnAccount && !isAdmin) {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Bu işlem için yetkiniz bulunmamaktadır',
+        });
+      }
+
+      const result = await this.authService.delete(userId);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Tüm kullanıcıları getir
+   */
+  getAllUsers = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      // Admin ve superadmin tüm kullanıcıları görebilir
+      // roleGuard middleware'i zaten admin ve superadmin kontrolü yapıyor
+      const includeInactive = (req.user.is_superadmin || req.user.role === 'admin') && req.query.includeInactive === 'true';
+      
+      const result = await this.authService.getAllUsers(includeInactive);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * ID ile kullanıcı getir
+   */
+  getUserById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Kullanıcı ID\'si gereklidir',
+        });
+      }
+
+      // Güvenlik kontrolü: Kullanıcı kendi bilgilerini, admin ve superadmin herkesi görebilir
+      // roleGuard middleware'i zaten admin ve superadmin kontrolü yapıyor
+      const isOwnAccount = userId === req.user.auth_user_id;
+      const isAdmin = req.user.role === 'admin' || req.user.is_superadmin;
+      
+      if (!isOwnAccount && !isAdmin) {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Bu işlem için yetkiniz bulunmamaktadır',
+        });
+      }
+
+      const result = await this.authService.getUserById(userId);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Süperadmin dashboard (sadece süperadmin erişebilir - onlySuperAdmin middleware ile korumalı)
+   */
+  getSuperadminDashboard = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı',
+        });
+      }
+
+      // Bu endpoint'e sadece onlySuperAdmin middleware'i geçen kullanıcılar erişebilir
+      // O yüzden burada ekstra kontrol gerekmez
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        message: 'Süperadmin dashboard',
+        data: {
+          user: {
+            auth_user_id: req.user.auth_user_id,
+            email: req.user.email,
+            role: req.user.role,
+            is_superadmin: req.user.is_superadmin,
+          },
+        },
+      });
+    } catch (error) {
+      return next(error);
     }
   };
 }

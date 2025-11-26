@@ -1,3 +1,4 @@
+// Request logger middleware: Her HTTP isteğini loglar (method, URL, status code, süre)
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../config/logger.ts';
 

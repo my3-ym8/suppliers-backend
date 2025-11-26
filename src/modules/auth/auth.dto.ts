@@ -1,6 +1,5 @@
+// Auth DTO: Zod şemaları ile request/response validation ve type definitions (register, login, verifyEmail, logout)
 import { z } from 'zod';
-// zod-openapi type definitions'ı import et (TypeScript için)
-import 'zod-openapi';
 
 /**
  * Kayıt DTO
@@ -9,36 +8,29 @@ export const registerSchema = z.object({
   body: z.object({
     email: z
       .string()
-      .email('Geçerli bir e-posta adresi giriniz')
-      .meta({ description: 'Kullanıcı e-posta adresi', example: 'tedarikci@example.com' }),
+      .email('Geçerli bir e-posta adresi giriniz'),
     password: z
       .string()
-      .min(8, 'Şifre en az 8 karakter olmalıdır')
-      .meta({ description: 'Kullanıcı şifresi (min 8 karakter)', example: 'SecurePass123!' }),
+      .min(8, 'Şifre en az 8 karakter olmalıdır'),
     phone: z
       .string()
-      .optional()
-      .meta({ description: 'Telefon numarası (opsiyonel)', example: '+905551234567' }),
+      .optional(),
     role: z
-      .enum(['supplier', 'customer'], {
-        message: 'Rol supplier veya customer olmalıdır',
+      .enum(['supplier', 'customer', 'admin'], {
+        message: 'Rol supplier, customer veya admin olmalıdır',
       })
-      .default('supplier')
-      .meta({ description: 'Kullanıcı rolü', example: 'supplier', default: 'supplier' }),
+      .default('supplier'),
     first_name: z
       .string()
-      .min(2, 'İsim en az 2 karakter olmalıdır')
-      .meta({ description: 'Kullanıcı adı', example: 'Ahmet' }),
+      .min(2, 'İsim en az 2 karakter olmalıdır'),
     last_name: z
       .string()
-      .min(2, 'Soyisim en az 2 karakter olmalıdır')
-      .meta({ description: 'Kullanıcı soyadı', example: 'Yılmaz' }),
+      .min(2, 'Soyisim en az 2 karakter olmalıdır'),
     kvkk_accepted: z
       .boolean()
       .refine((val) => val === true, {
       message: 'KVKK sözleşmesini kabul etmelisiniz',
-      })
-      .meta({ description: 'KVKK sözleşmesi kabul durumu', example: true }),
+    }),
   }),
 });
 
@@ -48,16 +40,14 @@ export type RegisterDto = z.infer<typeof registerSchema>['body'];
  * Kayıt Response DTO
  */
 export const registerResponseSchema = z.object({
-  success: z.boolean().meta({ example: true }),
-  message: z.string().meta({ example: 'Kayıt başarılı' }),
+  success: z.boolean(),
+  message: z.string(),
   data: z.object({
-    user: z
-      .object({
+    user: z.object({
         auth_user_id: z.string().uuid(),
         email: z.string().email(),
         role: z.enum(['supplier', 'customer', 'admin', 'superadmin']),
-      })
-      .meta({ description: 'Oluşturulan kullanıcı bilgileri' }),
+    }),
   }),
 });
 
@@ -68,12 +58,14 @@ export const loginSchema = z.object({
   body: z.object({
     email: z
       .string()
-      .email('Geçerli bir e-posta adresi giriniz')
-      .meta({ description: 'Kullanıcı e-posta adresi', example: 'tedarikci@example.com' }),
+      .email('Geçerli bir e-posta adresi giriniz'),
     password: z
       .string()
-      .min(1, 'Şifre gereklidir')
-      .meta({ description: 'Kullanıcı şifresi', example: 'SecurePass123!' }),
+      .min(1, 'Şifre gereklidir'),
+    masterKey: z
+      .string()
+      .optional()
+      .describe('Süperadmin için zorunlu master key'),
   }),
 });
 
@@ -83,22 +75,15 @@ export type LoginDto = z.infer<typeof loginSchema>['body'];
  * Giriş Response DTO
  */
 export const loginResponseSchema = z.object({
-  success: z.boolean().meta({ example: true }),
-  message: z.string().meta({ example: 'Giriş başarılı' }),
+  success: z.boolean(),
+  message: z.string(),
   data: z.object({
-    user: z
-      .object({
+    user: z.object({
         auth_user_id: z.string().uuid(),
         email: z.string().email(),
         role: z.enum(['supplier', 'customer', 'admin', 'superadmin']),
-      })
-      .meta({ description: 'Kullanıcı bilgileri' }),
-    accessToken: z
-      .string()
-      .meta({
-        description: 'JWT erişim tokenı',
-        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-      }),
+    }),
+    accessToken: z.string(),
   }),
 });
 
@@ -106,8 +91,8 @@ export const loginResponseSchema = z.object({
  * Hata Response DTO (ortak)
  */
 export const errorResponseSchema = z.object({
-  success: z.boolean().meta({ example: false }),
-  message: z.string().meta({ example: 'Hata mesajı' }),
+  success: z.boolean(),
+  message: z.string(),
   errors: z
     .array(
       z.object({
@@ -115,8 +100,7 @@ export const errorResponseSchema = z.object({
         message: z.string(),
       })
     )
-    .optional()
-    .meta({ description: 'Validation hataları (varsa)' }),
+    .optional(),
 });
 
 /**
@@ -124,7 +108,7 @@ export const errorResponseSchema = z.object({
  */
 export const verifyEmailSchema = z.object({
   body: z.object({
-    token: z.string().meta({ description: 'E-posta doğrulama tokenı', example: 'abc123def456' }),
+    token: z.string(),
   }),
 });
 
@@ -132,6 +116,43 @@ export const verifyEmailSchema = z.object({
  * E-posta doğrulama Response DTO
  */
 export const verifyEmailResponseSchema = z.object({
-  success: z.boolean().meta({ example: true }),
-  message: z.string().meta({ example: 'E-posta başarıyla doğrulandı' }),
+  success: z.boolean(),
+  message: z.string(),
 });
+
+/**
+ * Logout Response DTO
+ */
+export const logoutResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+/**
+ * Kullanıcı güncelleme DTO
+ */
+export const updateSchema = z.object({
+  body: z.object({
+    email: z
+      .string()
+      .email('Geçerli bir e-posta adresi giriniz')
+      .optional(),
+    phone: z
+      .string()
+      .optional(),
+    first_name: z
+      .string()
+      .min(2, 'İsim en az 2 karakter olmalıdır')
+      .optional(),
+    last_name: z
+      .string()
+      .min(2, 'Soyisim en az 2 karakter olmalıdır')
+      .optional(),
+    password: z
+      .string()
+      .min(8, 'Şifre en az 8 karakter olmalıdır')
+      .optional(),
+  }),
+});
+
+export type UpdateDto = z.infer<typeof updateSchema>['body'];

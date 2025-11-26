@@ -1,3 +1,4 @@
+// Tüm API route'larını birleştirir ve /api prefix'i ile yapılandırır
 import { Router } from 'express';
 import authRouter from './modules/auth/auth.router.ts';
 

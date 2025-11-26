@@ -1,4 +1,4 @@
-// Basit logger - İleride Pino/Winston eklenebilir
+// Logger utility: Uygulama genelinde log mesajları için basit logger (info, error, warn, debug)
 export const logger = {
   info: (message: string, ...args: unknown[]) => {
     console.log(`[INFO] ${message}`, ...args);
