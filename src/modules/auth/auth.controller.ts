@@ -24,7 +24,8 @@ export class AuthController {
         });
       }
 
-      if (registerData.role === 'superadmin') {
+      // Superadmin rolü kontrolü (DTO'da superadmin yok ama güvenlik için kontrol ediyoruz)
+      if ((registerData.role as string) === 'superadmin') {
         return res.status(HttpStatus.FORBIDDEN).json({
           success: false,
           message: 'Superadmin rolü kayıt edilemez',
@@ -43,7 +44,7 @@ export class AuthController {
         },
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   };
 
@@ -85,8 +86,8 @@ export class AuthController {
 
       const registerData = req.body as RegisterDto;
       
-      // Admin rolü zorunlu, superadmin engellenmiş
-      if (registerData.role === 'superadmin') {
+      // Admin rolü zorunlu, superadmin engellenmiş (DTO'da superadmin yok ama güvenlik için kontrol ediyoruz)
+      if ((registerData.role as string) === 'superadmin') {
         return res.status(HttpStatus.FORBIDDEN).json({
           success: false,
           message: 'Superadmin rolü kayıt edilemez',
@@ -112,7 +113,7 @@ export class AuthController {
         },
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   };
 

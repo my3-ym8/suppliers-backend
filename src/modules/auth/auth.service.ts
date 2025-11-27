@@ -20,7 +20,8 @@ export class AuthService {
    */
   async register(data: RegisterDto, requesterUserId?: string) {
     // Superadmin rolü kontrolü: Superadmin hiçbir zaman kayıt edilemez
-    if (data.role === 'superadmin') {
+    // Type assertion kullanarak kontrol ediyoruz (DTO'da superadmin yok ama güvenlik için kontrol ediyoruz)
+    if ((data.role as string) === 'superadmin') {
       throw new BadRequestException('Superadmin rolü kayıt edilemez');
     }
 
