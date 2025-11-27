@@ -22,22 +22,63 @@ export const onlySuperAdmin = (
   _res: Response,
   next: NextFunction
 ) => {
-  // authGuard middleware'i çalışmış olmalı
-  if (!req.user) {
-    throw new ForbiddenException('Kullanıcı bilgisi bulunamadı');
-  }
+  try {
+    // authGuard middleware'i çalışmış olmalı
+    if (!req.user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[onlySuperAdmin] req.user yok - erişim reddedildi');
+      }
+      return next(new ForbiddenException('Kullanıcı bilgisi bulunamadı. Bu işlem için giriş yapmanız gerekmektedir.'));
+    }
 
-  // 1. Kontrol: JWT'deki user.is_superadmin === true
-  if (!req.user.is_superadmin) {
-    throw new ForbiddenException('Bu işlem için süperadmin yetkisi gereklidir');
-  }
+    // Debug log
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[onlySuperAdmin] Kullanıcı kontrolü:', {
+        email: req.user.email,
+        is_superadmin: req.user.is_superadmin,
+        role: req.user.role,
+        required_email: env.SUPERADMIN_EMAIL,
+      });
+    }
 
-  // 2. Kontrol: JWT'deki user.email === SUPERADMIN_EMAIL
-  if (req.user.email !== env.SUPERADMIN_EMAIL) {
-    throw new ForbiddenException('Geçersiz süperadmin email');
-  }
+    // 1. Kontrol: JWT'deki user.is_superadmin === true (KESINLIKLE true olmalı)
+    if (req.user.is_superadmin !== true) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[onlySuperAdmin] is_superadmin false - erişim reddedildi');
+      }
+      return next(new ForbiddenException('Bu işlem için süperadmin yetkisi gereklidir'));
+    }
 
-  // Her iki koşul da sağlandı → devam et
-  next();
+    // 2. Kontrol: JWT'deki user.email === SUPERADMIN_EMAIL (KESINLIKLE eşleşmeli)
+    if (!env.SUPERADMIN_EMAIL) {
+      console.error('[onlySuperAdmin] SUPERADMIN_EMAIL environment variable is not set');
+      return next(new ForbiddenException('Süperadmin yapılandırması eksik'));
+    }
+
+    if (req.user.email !== env.SUPERADMIN_EMAIL) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[onlySuperAdmin] Email eşleşmiyor - erişim reddedildi', {
+          user_email: req.user.email,
+          required_email: env.SUPERADMIN_EMAIL,
+        });
+      }
+      return next(new ForbiddenException('Geçersiz süperadmin email'));
+    }
+
+    // Her iki koşul da sağlandı → devam et
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[onlySuperAdmin] Süperadmin doğrulandı - erişim izni verildi');
+    }
+    next();
+  } catch (error: any) {
+    // Beklenmeyen hatalar için
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[onlySuperAdmin] Hata:', error);
+    }
+    if (error instanceof ForbiddenException) {
+      return next(error);
+    }
+    return next(new ForbiddenException('Yetkilendirme hatası'));
+  }
 };
 

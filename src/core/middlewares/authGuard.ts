@@ -24,14 +24,14 @@ export const authGuard = async (
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Token bulunamadı');
+      return next(new UnauthorizedException('Token bulunamadı'));
     }
 
     const token = authHeader.substring(7);
 
     // Token boş mu kontrol et
     if (!token || token.trim().length === 0) {
-      throw new UnauthorizedException('Token boş');
+      return next(new UnauthorizedException('Token boş'));
     }
 
     // Token blacklist kontrolü - token logout ile blacklist'e eklenmiş mi?
@@ -138,6 +138,15 @@ export const authGuard = async (
       role: user.role,
       is_superadmin: user.is_superadmin,
     };
+
+    // Debug log
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[authGuard] Kullanıcı doğrulandı:', {
+        email: user.email,
+        role: user.role,
+        is_superadmin: user.is_superadmin,
+      });
+    }
 
     next();
   } catch (error: any) {

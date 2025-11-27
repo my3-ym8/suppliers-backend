@@ -17,11 +17,12 @@ const authRepository = new AuthRepository();
 const authService = new AuthService(authRepository);
 const authController = new AuthController(authService);
 
+// Admin register endpoint (Sadece süperadmin - authGuard + onlySuperAdmin ile korumalı)
+// Daha spesifik route önce gelmeli (Express route matching sırası)
+router.post('/register/admin', authGuard, onlySuperAdmin, validateRequest(registerSchema), authController.registerAdmin);
+
 // Register endpoint (Public - supplier ve customer için)
 router.post('/register', validateRequest(registerSchema), authController.register);
-
-// Admin register endpoint (Sadece süperadmin - authGuard + onlySuperAdmin ile korumalı)
-router.post('/register/admin', authGuard, onlySuperAdmin, validateRequest(registerSchema), authController.register);
 
 // Login endpoint (Rate limiter ile korumalı - brute force saldırılarına karşı)
 router.post('/login', loginRateLimiter, validateRequest(loginSchema), authController.login);

@@ -19,6 +19,11 @@ export class AuthService {
    * Kullanıcı kaydı
    */
   async register(data: RegisterDto, requesterUserId?: string) {
+    // Superadmin rolü kontrolü: Superadmin hiçbir zaman kayıt edilemez
+    if (data.role === 'superadmin') {
+      throw new BadRequestException('Superadmin rolü kayıt edilemez');
+    }
+
     // Admin rolü kontrolü: Sadece süperadmin admin kaydı yapabilir
     if (data.role === 'admin') {
       // Admin kaydı için requesterUserId zorunlu (süperadmin olmalı)

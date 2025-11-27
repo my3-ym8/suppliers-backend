@@ -4,19 +4,34 @@ import { AuthService } from './auth.service.ts';
 import { RegisterDto, LoginDto } from './auth.dto.ts';
 import { HttpStatus } from '../../core/http/httpStatus.ts';
 import { AuthRequest } from '../../core/middlewares/authGuard.ts';
+import env from '../../config/env.ts';
 
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   /**
-   * Kullanıcı kaydı
-   * Not: Admin rolü için sadece süperadmin kayıt yapabilir
+   * Kullanıcı kaydı (Public - supplier ve customer için)
    */
   register = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      // Admin rolü kontrolü: Eğer admin kaydı yapılıyorsa, requesterUserId gereklidir
-      const requesterUserId = req.user?.auth_user_id;
-      const result = await this.authService.register(req.body as RegisterDto, requesterUserId);
+      const registerData = req.body as RegisterDto;
+
+      // Admin ve superadmin rolü kontrolü: Normal register endpoint'i bu roller için kullanılamaz
+      if (registerData.role === 'admin') {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Admin kaydı için /register/admin endpoint\'ini kullanmalısınız',
+        });
+      }
+
+      if (registerData.role === 'superadmin') {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Superadmin rolü kayıt edilemez',
+        });
+      }
+
+      const result = await this.authService.register(registerData);
 
       res.status(HttpStatus.CREATED).json({
         success: true,
@@ -25,6 +40,75 @@ export class AuthController {
           user: result.user,
           accessToken: result.accessToken,
           verificationToken: result.verificationToken, // Production'da e-posta ile gönderilir
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Admin kaydı (Sadece süperadmin - authGuard + onlySuperAdmin ile korumalı)
+   */
+  registerAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      // Süperadmin kontrolü - middleware'lerden geçmiş olmalı ama ekstra kontrol
+      if (!req.user) {
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: 'Kullanıcı bilgisi bulunamadı. Bu işlem için giriş yapmanız gerekmektedir.',
+        });
+      }
+
+      // Sıkı kontrol: is_superadmin KESINLIKLE true olmalı
+      if (req.user.is_superadmin !== true) {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Bu işlem için süperadmin yetkisi gereklidir',
+        });
+      }
+
+      // Email kontrolü - SUPERADMIN_EMAIL ile eşleşmeli
+      if (!env.SUPERADMIN_EMAIL) {
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: 'Süperadmin yapılandırması eksik',
+        });
+      }
+
+      if (req.user.email !== env.SUPERADMIN_EMAIL) {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Geçersiz süperadmin email',
+        });
+      }
+
+      const registerData = req.body as RegisterDto;
+      
+      // Admin rolü zorunlu, superadmin engellenmiş
+      if (registerData.role === 'superadmin') {
+        return res.status(HttpStatus.FORBIDDEN).json({
+          success: false,
+          message: 'Superadmin rolü kayıt edilemez',
+        });
+      }
+
+      if (registerData.role !== 'admin') {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Bu endpoint sadece admin kaydı için kullanılabilir',
+        });
+      }
+
+      const result = await this.authService.register(registerData, req.user.auth_user_id);
+
+      res.status(HttpStatus.CREATED).json({
+        success: true,
+        message: 'Admin kaydı başarılı',
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          verificationToken: result.verificationToken,
         },
       });
     } catch (error) {
